@@ -1,0 +1,14 @@
+name: Task
+description: Track a single task
+title: "[Task] "
+labels: []
+body:
+  - type: input
+    id: goal
+    attributes: {label: Goal, placeholder: "What outcome proves this is done?"}
+  - type: textarea
+    id: steps
+    attributes: {label: Steps, placeholder: "- Step 1\n- Step 2"}
+  - type: textarea
+    id: acceptance
+    attributes: {label: Acceptance, placeholder: "- Check 1\n- Check 2"}

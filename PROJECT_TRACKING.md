@@ -39,11 +39,12 @@ This document provides a comprehensive guide for tracking your progress through 
 ## 📋 Task Breakdown (Issues 1-10)
 
 ### Phase 1: Foundations
-- **[Issue #1] Task 0: Project Setup & Infrastructure**
+- **[Issue #1] Task 0: Project Setup & Infrastructure** → [📋 See detailed checklist](ISSUE-1-SYSTEM-PREP.md)
   - Set up complete project structure
   - Docker Compose with all services
   - Basic CI/CD pipeline
   - Health check endpoints
+  - **6 Sub-tasks** covering system prep, Docker setup, and GPU configuration
 
 ### Phase 2: Core AI Services
 - **[Issue #2] Task 1: LLM Service Implementation**

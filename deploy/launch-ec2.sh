@@ -100,20 +100,26 @@ echo ""
 log_info "Step 3: Choose Instance Type"
 echo ""
 echo "Instance types:"
-echo "  1) t3.medium  - 2 vCPU, 4 GB RAM  - \$0.04/hr (~\$30/mo)  [Dev/Testing]"
-echo "  2) t3.large   - 2 vCPU, 8 GB RAM  - \$0.08/hr (~\$60/mo)  [Recommended]"
-echo "  3) t3.xlarge  - 4 vCPU, 16 GB RAM - \$0.17/hr (~\$120/mo) [Production CPU]"
-echo "  4) g4dn.xlarge - 4 vCPU, 16 GB RAM, NVIDIA T4 GPU - \$0.53/hr (~\$380/mo) [Production GPU]"
+echo "  1) t2.micro       - 1 vCPU, 1 GB RAM  - FREE (750hrs/mo for 12mo) [Free Tier]"
+echo "  2) c7i-flex.large - 2 vCPU, 4 GB RAM  - FREE (750hrs/mo for 12mo) [Free Tier - Recommended!]"
+echo "  3) t3.medium      - 2 vCPU, 4 GB RAM  - \$0.04/hr (~\$30/mo)  [General Purpose]"
+echo "  4) t3.large       - 2 vCPU, 8 GB RAM  - \$0.08/hr (~\$60/mo)  [Production]"
+echo "  5) t3.xlarge      - 4 vCPU, 16 GB RAM - \$0.17/hr (~\$120/mo) [Production CPU]"
+echo "  6) g4dn.xlarge    - 4 vCPU, 16 GB RAM, NVIDIA T4 GPU - \$0.53/hr (~\$380/mo) [Production GPU]"
+echo ""
+log_info "💡 c7i-flex.large offers 4x more RAM than t2.micro - much better for this app!"
 echo ""
 
-read -p "Choose instance type [1-4] (default: 2): " instance_choice
-instance_choice=${instance_choice:-2}
+read -p "Choose instance type [1-6] (default: 4): " instance_choice
+instance_choice=${instance_choice:-4}
 
 case $instance_choice in
-    1) INSTANCE_TYPE="t3.medium"; USE_GPU=false ;;
-    2) INSTANCE_TYPE="t3.large"; USE_GPU=false ;;
-    3) INSTANCE_TYPE="t3.xlarge"; USE_GPU=false ;;
-    4) INSTANCE_TYPE="g4dn.xlarge"; USE_GPU=true ;;
+    1) INSTANCE_TYPE="t2.micro"; USE_GPU=false ;;
+    2) INSTANCE_TYPE="c7i-flex.large"; USE_GPU=false ;;
+    3) INSTANCE_TYPE="t3.medium"; USE_GPU=false ;;
+    4) INSTANCE_TYPE="t3.large"; USE_GPU=false ;;
+    5) INSTANCE_TYPE="t3.xlarge"; USE_GPU=false ;;
+    6) INSTANCE_TYPE="g4dn.xlarge"; USE_GPU=true ;;
     *) INSTANCE_TYPE="t3.large"; USE_GPU=false ;;
 esac
 

@@ -1,14 +1,79 @@
 name: Task
-description: Track a single task
+description: Track a single task or feature implementation
 title: "[Task] "
 labels: []
 body:
   - type: input
     id: goal
-    attributes: {label: Goal, placeholder: "What outcome proves this is done?"}
+    attributes:
+      label: Goal
+      description: What outcome proves this task is complete?
+      placeholder: "e.g., LLM service responds to requests with streaming SSE"
+    validations:
+      required: true
+
   - type: textarea
     id: steps
-    attributes: {label: Steps, placeholder: "- Step 1\n- Step 2"}
+    attributes:
+      label: Implementation Steps
+      description: Break down the task into concrete steps
+      placeholder: |
+        - Step 1: Set up vLLM Docker container
+        - Step 2: Configure model loading
+        - Step 3: Implement SSE streaming endpoint
+        - Step 4: Test with sample requests
+      value: |
+        - [ ] 
+    validations:
+      required: true
+
   - type: textarea
     id: acceptance
-    attributes: {label: Acceptance, placeholder: "- Check 1\n- Check 2"}
+    attributes:
+      label: Acceptance Criteria
+      description: How will you verify this is done?
+      placeholder: |
+        - Health check endpoint returns 200
+        - First token latency < 300ms
+        - Streaming works with SSE format
+      value: |
+        - [ ] 
+    validations:
+      required: true
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Project Phase
+      description: Which phase does this task belong to?
+      options:
+        - "Phase 1: Foundations"
+        - "Phase 2: Core AI Services"
+        - "Phase 3: RAG"
+        - "Phase 4: Orchestration"
+        - "Phase 5: Frontend"
+        - "Phase 6: Observability & Hardening"
+    validations:
+      required: true
+
+  - type: textarea
+    id: slo
+    attributes:
+      label: SLO Alignment
+      description: Which performance targets does this task address?
+      placeholder: |
+        - First token: ≤ 300ms (text)
+        - Streaming: ≥ 30 tok/s
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: Links, references, or context
+      placeholder: |
+        - Documentation: https://...
+        - Related issues: #123
+    validations:
+      required: false

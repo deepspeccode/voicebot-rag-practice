@@ -61,39 +61,60 @@ Our performance targets for production-quality experience:
 - Docker Desktop running
 - Node.js 18+ (for frontend)
 - Git
-- 8GB+ RAM (for TinyLlama model)
+- Ollama installed locally
+- 8GB+ RAM (for Qwen2.5 7B model)
 
 ### Demo Setup (5 minutes)
 
-1. **Clone and start the LLM service:**
+1. **Install and setup Ollama:**
+   ```bash
+   # Install Ollama (if not already installed)
+   # Visit https://ollama.ai/download for installation instructions
+   
+   # Download Qwen2.5 7B model
+   ollama pull qwen2.5:7b
+   
+   # Start Ollama server
+   ollama serve
+   ```
+
+2. **Clone and start the LLM service:**
    ```bash
    git clone https://github.com/deepspeccode/voicebot-rag-practice.git
    cd voicebot-rag-practice
-   docker-compose up llm
+   
+   # Start the LLM service (runs on host, not in Docker)
+   cd services/llm
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   python main.py
    ```
 
-2. **Start the frontend (in a new terminal):**
+3. **Start the frontend (in a new terminal):**
    ```bash
    cd frontend
    node server.js
    ```
 
-3. **Open the demo:**
+4. **Open the demo:**
    - Frontend: http://localhost:3000
    - LLM API: http://localhost:8001
 
 ### 🎯 **Live Demo Ready!**
 
 Your team can now interact with the AI chatbot:
-- **Real AI responses** from TinyLlama running locally
+- **Real AI responses** from Qwen2.5 7B running locally via Ollama
 - **Beautiful interface** with typing indicators
 - **Status monitoring** showing service health
 - **Demo instructions** built into the UI
+- **Both streaming and non-streaming** chat completions
 
 **Try these demo questions:**
 - "Hello! How are you?"
 - "What can you help me with?"
 - "Explain quantum computing in simple terms"
+- "Write a short poem about coding"
 
 ## 🧪 Testing the System
 
@@ -111,7 +132,10 @@ curl http://localhost:8001/healthz
 curl -X POST http://localhost:8001/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
+    "model": "qwen2.5:7b",
     "messages": [{"role": "user", "content": "Hello! How are you?"}],
+    "temperature": 0.7,
+    "max_tokens": 200,
     "stream": false
   }'
 ```
@@ -121,7 +145,10 @@ curl -X POST http://localhost:8001/v1/chat/completions \
 curl -X POST http://localhost:8001/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
+    "model": "qwen2.5:7b",
     "messages": [{"role": "user", "content": "Tell me a short story about a robot"}],
+    "temperature": 0.7,
+    "max_tokens": 200,
     "stream": true
   }'
 ```
@@ -198,7 +225,7 @@ docker-compose logs -f llm
 ## 🛠️ Technology Stack
 
 ### AI Services
-- **LLM**: vLLM or llama.cpp with Llama 3.1 8B Instruct
+- **LLM**: Ollama with Qwen2.5 7B Instruct (Currently Active)
 - **STT**: faster-whisper (OpenAI Whisper)
 - **TTS**: Piper or Coqui-TTS
 - **Embeddings**: intfloat/e5-small-v2
@@ -214,6 +241,141 @@ docker-compose logs -f llm
 - **Containers**: Docker Compose (dev), Kubernetes (prod)
 - **IaC**: Terraform
 - **CI/CD**: GitHub Actions
+
+## 🤖 Qwen2.5 7B Model Integration (COMPLETE ✅)
+
+### 🚀 **What We Built**
+
+We've successfully integrated **Qwen2.5 7B Instruct** model with **Ollama** backend, providing a powerful, locally-running AI chatbot with superior performance compared to the previous TinyLlama setup.
+
+#### 🏗️ **Updated Architecture**
+```
+┌─────────────────┐
+│   FastAPI       │  OpenAI-compatible API wrapper
+│   (Port 8001)   │  /healthz, /v1/chat/completions, /metrics
+└─────────┬───────┘
+          │
+┌─────────▼───────┐
+│   Ollama        │  LLM inference engine
+│ (Qwen2.5:7b)   │  High-performance model serving
+└─────────────────┘
+```
+
+#### 🎯 **Key Improvements**
+
+**✅ Model Upgrade:**
+- **From**: TinyLlama 1.1B (638MB) → **To**: Qwen2.5 7B (4.7GB)
+- **Performance**: Significantly better reasoning, creativity, and accuracy
+- **Context**: Better understanding of complex queries and conversations
+
+**✅ Backend Modernization:**
+- **From**: llama.cpp → **To**: Ollama
+- **Benefits**: Better model management, easier updates, optimized inference
+- **Compatibility**: Maintains OpenAI-compatible API
+
+**✅ Enhanced Features:**
+- **Streaming**: Real-time token streaming with Ollama's optimized pipeline
+- **Non-streaming**: Batch completions for better throughput
+- **Health Monitoring**: Ollama server availability checks
+- **Error Handling**: Robust error handling with graceful degradation
+
+#### 📁 **Updated Files**
+
+**Modified Files:**
+- **`services/llm/main.py`** - Complete rewrite for Ollama integration
+- **`docker-compose.yml`** - Updated model configuration
+- **`frontend/index.html`** - Updated UI to reflect Qwen branding
+
+**New Functions Added:**
+- **`format_messages_for_ollama()`** - Converts OpenAI format to Ollama format
+- **`generate_completion()`** - Non-streaming completions via Ollama
+- **`generate_streaming_response()`** - Streaming completions via Ollama
+- **Updated `lifespan()`** - Ollama server health checks
+- **Updated `health_check()`** - Ollama-specific health monitoring
+
+#### 🧪 **Test Results**
+
+**Performance Tests:**
+```bash
+# Simple math - Instant response
+curl -X POST http://localhost:8001/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "qwen2.5:7b", "messages": [{"role": "user", "content": "What is 2+2?"}]}'
+# Response: "The sum of 2 + 2 is 4." (Instant, accurate)
+
+# Complex explanation - Detailed, well-structured
+curl -X POST http://localhost:8001/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "qwen2.5:7b", "messages": [{"role": "user", "content": "Explain machine learning in simple terms."}]}'
+# Response: Comprehensive, educational explanation with examples
+
+# Creative writing - High-quality, formatted
+curl -X POST http://localhost:8001/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "qwen2.5:7b", "messages": [{"role": "user", "content": "Write a short poem about coding."}], "temperature": 0.7}'
+# Response: Beautiful, creative poem with proper formatting
+```
+
+**Streaming Tests:**
+```bash
+# Real-time streaming - Smooth token delivery
+curl -X POST http://localhost:8001/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "qwen2.5:7b", "messages": [{"role": "user", "content": "Tell me a story"}], "stream": true}'
+# Response: Real-time token streaming with proper SSE formatting
+```
+
+#### 🎯 **Current Status: FULLY OPERATIONAL**
+
+- 🟢 **Service**: Running and healthy (`model_loaded: true`)
+- 🟢 **API**: All endpoints working (`/healthz`, `/v1/chat/completions`, `/metrics`)
+- 🟢 **AI**: Qwen2.5 generating high-quality, intelligent responses
+- 🟢 **Streaming**: SSE streaming working with proper data framing
+- 🟢 **Performance**: Fast response times with superior quality
+- 🟢 **Monitoring**: Prometheus metrics active and collecting data
+- 🟢 **Frontend**: Updated HTML interface reflecting Qwen branding
+
+#### 🔧 **Setup Instructions**
+
+**Prerequisites:**
+```bash
+# Install Ollama (if not already installed)
+# Visit https://ollama.ai/download for installation instructions
+
+# Download Qwen2.5 7B model (4.7GB download)
+ollama pull qwen2.5:7b
+
+# Start Ollama server
+ollama serve
+```
+
+**Service Setup:**
+```bash
+# Clone repository
+git clone https://github.com/deepspeccode/voicebot-rag-practice.git
+cd voicebot-rag-practice
+
+# Setup LLM service
+cd services/llm
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Start the service
+python main.py
+```
+
+**Verification:**
+```bash
+# Check service health
+curl http://localhost:8001/healthz
+# Expected: {"status": "ok", "model_loaded": true, "uptime": ...}
+
+# Test chat completion
+curl -X POST http://localhost:8001/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "qwen2.5:7b", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
 
 ## 🤖 LLM Service Implementation (COMPLETE ✅)
 
@@ -513,20 +675,22 @@ Built with open-source models and tools:
 ### ✅ **What's Working Right Now**
 
 **Complete AI Chatbot System:**
-- 🤖 **Real AI Responses**: TinyLlama model generating thoughtful, helpful responses
-- 🔄 **Streaming Support**: Real-time token streaming with SSE
+- 🤖 **Real AI Responses**: Qwen2.5 7B model generating intelligent, high-quality responses
+- 🔄 **Streaming Support**: Real-time token streaming with Ollama's optimized pipeline
 - 🌐 **Web Interface**: Beautiful HTML frontend with typing indicators
 - 🔧 **OpenAI Compatibility**: Drop-in replacement for OpenAI API
 - 📊 **Monitoring**: Prometheus metrics and Grafana dashboards
 - ☁️ **Production Ready**: Deployed on AWS EC2 with automation
+- 🚀 **Modern Backend**: Ollama integration for better model management
 
 **Technical Features:**
 - ✅ **Response Filtering**: Prevents AI from "talking to itself"
 - ✅ **CORS Support**: Cross-origin requests enabled
 - ✅ **Health Checks**: Comprehensive service monitoring
 - ✅ **Error Handling**: Graceful degradation and recovery
-- ✅ **Docker Integration**: Multi-stage builds with optimization
-- ✅ **Model Management**: Automatic model downloading and setup
+- ✅ **Ollama Integration**: Modern model serving with optimized inference
+- ✅ **Model Management**: Easy model switching and updates via Ollama
+- ✅ **Performance**: Fast response times with superior quality
 
 **Live Demo Available:**
 - **Local**: http://localhost:3000 (when running locally)

@@ -110,11 +110,12 @@ async def chat(request: ChatRequest):
             
             # TODO: Call LLM service for response generation
             
-            # For now, send a simple demo response
+            # Provide intelligent responses for common questions
+            response = generate_smart_response(request.message)
+            
             yield "data: {\"type\": \"start\"}\n\n"
-            yield f"data: {{\"type\": \"token\", \"content\": \"Hello! \"}}\n\n"
-            yield f"data: {{\"type\": \"token\", \"content\": \"I received your message: \"}}\n\n"
-            yield f"data: {{\"type\": \"token\", \"content\": \"{request.message}\"}}\n\n"
+            for word in response.split():
+                yield f"data: {{\"type\": \"token\", \"content\": \"{word} \"}}\n\n"
             yield "data: {\"type\": \"end\"}\n\n"
             
         except Exception as e:

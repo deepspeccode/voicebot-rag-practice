@@ -40,15 +40,14 @@ def get_metrics():
 
 # Global variables
 model_loaded = False
-llama_server_process: Optional[subprocess.Popen] = None
-llama_server_url = "http://localhost:8080"
+ollama_url = "http://localhost:11434"
 
 class ChatMessage(BaseModel):
     role: str
     content: str
 
 class ChatCompletionRequest(BaseModel):
-    model: str = "llama-3.1-8b-instruct"
+    model: str = "tinyllama-1.1b-chat"
     messages: list[ChatMessage]
     temperature: float = 0.7
     max_tokens: int = 512
@@ -72,78 +71,34 @@ class HealthResponse(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage llama.cpp server lifecycle"""
-    global llama_server_process, model_loaded
+    """Check Ollama server availability"""
+    global model_loaded
     
-    # Start llama.cpp server
-    logger.info("Starting llama.cpp server...")
-    model_path = os.getenv("MODEL_PATH", "/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
+    # Check if Ollama is running
+    logger.info("Checking Ollama server availability...")
+    model_name = os.getenv("MODEL_NAME", "qwen2.5:7b")
     
-    if not os.path.exists(model_path):
-        logger.error(f"Model file not found at {model_path}")
-        logger.error("Please ensure the model is downloaded to the models volume")
-    else:
-        logger.info(f"Starting llama.cpp server with model: {model_path}")
-        
-        # Start llama.cpp server
-        cmd = [
-            "llama-server",
-            "--model", model_path,
-            "--host", "0.0.0.0",
-            "--port", "8080",
-            "--n-predict", "512",
-            "--ctx-size", "2048",
-            "--threads", str(os.cpu_count() or 4),
-            "--batch-size", "512",
-            "--n-gpu-layers", "0",  # CPU only for now
-        ]
-        
-        try:
-            llama_server_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                preexec_fn=os.setsid  # Detach from current process group
-            )
-            
-            # Wait for server to start
-            await asyncio.sleep(10)
-            
-            # Check if server is running
-            if llama_server_process.poll() is None:
-                # Test server health
-                try:
-                    async with httpx.AsyncClient() as client:
-                        response = await client.get(f"{llama_server_url}/health", timeout=5)
-                        if response.status_code == 200:
-                            model_loaded = True
-                            logger.info("llama.cpp server started successfully")
-                        else:
-                            logger.error(f"llama.cpp server health check failed: {response.status_code}")
-                except httpx.RequestError as e:
-                    logger.error(f"Failed to connect to llama.cpp server: {e}")
-            else:
-                logger.error("llama.cpp server failed to start")
+    try:
+        async with httpx.AsyncClient() as client:
+            # Check if Ollama is running
+            response = await client.get(f"{ollama_url}/api/tags", timeout=5)
+            if response.status_code == 200:
+                # Check if our model is available
+                models = response.json().get("models", [])
+                model_available = any(model["name"] == model_name for model in models)
                 
-        except Exception as e:
-            logger.error(f"Error starting llama.cpp server: {e}")
+                if model_available:
+                    model_loaded = True
+                    logger.info(f"Ollama server is running and model {model_name} is available")
+                else:
+                    logger.error(f"Model {model_name} not found in Ollama. Available models: {[m['name'] for m in models]}")
+            else:
+                logger.error(f"Ollama server health check failed: {response.status_code}")
+    except httpx.RequestError as e:
+        logger.error(f"Failed to connect to Ollama server: {e}")
+        logger.error("Please ensure Ollama is running: ollama serve")
     
     yield
-    
-    # Cleanup
-    if llama_server_process:
-        logger.info("Shutting down llama.cpp server...")
-        try:
-            os.killpg(os.getpgid(llama_server_process.pid), signal.SIGTERM)
-            llama_server_process.wait(timeout=10)
-        except (subprocess.TimeoutExpired, ProcessLookupError):
-            logger.warning("Force killing llama.cpp server...")
-            try:
-                os.killpg(os.getpgid(llama_server_process.pid), signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        logger.info("llama.cpp server shut down")
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(title="LLM Service", version="1.0.0", lifespan=lifespan)
@@ -160,19 +115,19 @@ app.add_middleware(
 @app.get("/healthz", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint"""
-    # Check if llama.cpp server is actually running
-    llama_healthy = False
-    if llama_server_process and llama_server_process.poll() is None:
+    # Check if Ollama server is actually running
+    ollama_healthy = False
+    if model_loaded:
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(f"{llama_server_url}/health", timeout=2)
-                llama_healthy = response.status_code == 200
+                response = await client.get(f"{ollama_url}/api/tags", timeout=2)
+                ollama_healthy = response.status_code == 200
         except httpx.RequestError:
-            llama_healthy = False
+            ollama_healthy = False
     
     return HealthResponse(
-        status="ok" if model_loaded and llama_healthy else "degraded",
-        model_loaded=model_loaded and llama_healthy,
+        status="ok" if model_loaded and ollama_healthy else "degraded",
+        model_loaded=model_loaded and ollama_healthy,
         uptime=time.time()
     )
 
@@ -219,33 +174,33 @@ async def chat_completions(request: ChatCompletionRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 async def generate_completion(request: ChatCompletionRequest) -> ChatCompletionResponse:
-    """Generate non-streaming completion using llama.cpp"""
-    # Convert messages to llama.cpp format
-    prompt = format_messages_for_llama(request.messages)
+    """Generate non-streaming completion using Ollama"""
+    # Convert messages to Ollama format
+    prompt = format_messages_for_ollama(request.messages)
     
-    # Prepare llama.cpp request
-    llama_request = {
+    # Prepare Ollama request
+    ollama_request = {
+        "model": "qwen2.5:7b",
         "prompt": prompt,
-        "n_predict": request.max_tokens,
-        "temperature": request.temperature,
-        "stream": False
+        "stream": False,
+        "options": {
+            "temperature": request.temperature,
+            "num_predict": request.max_tokens
+        }
     }
     
     try:
-        # Call llama.cpp server
+        # Call Ollama server
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{llama_server_url}/completion",
-                json=llama_request,
+                f"{ollama_url}/api/generate",
+                json=ollama_request,
                 timeout=30
             )
             response.raise_for_status()
             
-            llama_response = response.json()
-        content = llama_response.get("content", "")
-        
-        # Filter out generated user messages to prevent "talking to itself"
-        content = filter_generated_user_messages(content)
+            ollama_response = response.json()
+        content = ollama_response.get("response", "")
         
         # Count tokens (rough estimation)
         prompt_tokens = len(prompt.split())
@@ -275,32 +230,35 @@ async def generate_completion(request: ChatCompletionRequest) -> ChatCompletionR
         )
         
     except httpx.RequestError as e:
-        logger.error(f"Error calling llama.cpp server: {e}")
+        logger.error(f"Error calling Ollama server: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate completion: {str(e)}")
     except Exception as e:
         logger.error(f"Unexpected error in generate_completion: {e}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGenerator[str, None]:
-    """Generate streaming response using llama.cpp"""
-    # Convert messages to llama.cpp format
-    prompt = format_messages_for_llama(request.messages)
+    """Generate streaming response using Ollama"""
+    # Convert messages to Ollama format
+    prompt = format_messages_for_ollama(request.messages)
     
-    # Prepare llama.cpp request
-    llama_request = {
+    # Prepare Ollama request
+    ollama_request = {
+        "model": "qwen2.5:7b",
         "prompt": prompt,
-        "n_predict": request.max_tokens,
-        "temperature": request.temperature,
-        "stream": True
+        "stream": True,
+        "options": {
+            "temperature": request.temperature,
+            "num_predict": request.max_tokens
+        }
     }
     
     try:
-        # Call llama.cpp server with streaming
+        # Call Ollama server with streaming
         async with httpx.AsyncClient() as client:
             async with client.stream(
                 "POST",
-                f"{llama_server_url}/completion",
-                json=llama_request,
+                f"{ollama_url}/api/generate",
+                json=ollama_request,
                 timeout=30
             ) as response:
                 response.raise_for_status()
@@ -308,34 +266,33 @@ async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGe
                 # Stream the response
                 async for line in response.aiter_lines():
                     if line:
-                        if line.startswith('data: '):
-                            data = line[6:]  # Remove 'data: ' prefix
-                            if data.strip() == '[DONE]':
+                        try:
+                            ollama_data = json.loads(line)
+                            # Convert Ollama format to OpenAI format
+                            if 'response' in ollama_data:
+                                content = ollama_data['response']
+                                if content:  # Only yield if there's content
+                                    openai_data = {
+                                        "choices": [{
+                                            "delta": {
+                                                "content": content
+                                            }
+                                        }]
+                                    }
+                                    yield f"data: {json.dumps(openai_data)}\n\n"
+                                    _, _, token_count = get_metrics()
+                                    token_count.inc(1)
+                            
+                            # Check if done
+                            if ollama_data.get('done', False):
                                 yield "data: [DONE]\n\n"
                                 break
-                            else:
-                                try:
-                                    llama_data = json.loads(data)
-                                    # Convert llama.cpp format to OpenAI format
-                                    if 'content' in llama_data:
-                                        # Filter out generated user messages
-                                        filtered_content = filter_generated_user_messages(llama_data['content'])
-                                        if filtered_content:  # Only yield if there's content after filtering
-                                            openai_data = {
-                                                "choices": [{
-                                                    "delta": {
-                                                        "content": filtered_content
-                                                    }
-                                                }]
-                                            }
-                                            yield f"data: {json.dumps(openai_data)}\n\n"
-                                            _, _, token_count = get_metrics()
-                                            token_count.inc(1)
-                                except json.JSONDecodeError:
-                                    continue
+                                
+                        except json.JSONDecodeError:
+                            continue
                             
     except httpx.RequestError as e:
-        logger.error(f"Error calling llama.cpp server: {e}")
+        logger.error(f"Error calling Ollama server: {e}")
         yield f"data: {json.dumps({'error': 'Failed to generate completion'})}\n\n"
 
 def filter_generated_user_messages(content: str) -> str:
@@ -343,35 +300,22 @@ def filter_generated_user_messages(content: str) -> str:
     # First, remove any special tokens that might cause issues
     content = content.replace('<|im_start|>', '').replace('<|im_end|>', '')
     
-    lines = content.split('\n')
-    filtered_lines = []
-    
-    for line in lines:
-        line = line.strip()
-        
-        # Stop at any conversation pattern
-        if (line.startswith('User:') or 
-            line.startswith('Human:') or
-            line.startswith('Question:') or
-            line.startswith('Assistant:') or
-            line.startswith('user:') or
-            line.startswith('assistant:') or
-            'User:' in line or 
-            'Human:' in line or
-            'Assistant:' in line):
-            break
-            
-        # Skip empty lines
-        if not line:
-            continue
-            
-        filtered_lines.append(line)
-    
-    # Join and clean up the response
-    result = '\n'.join(filtered_lines).strip()
+    # Aggressively cut off at the first "Assistant:" pattern
+    # This is the most common pattern that causes the issue
+    if 'Assistant:' in content:
+        result = content.split('Assistant:')[0].strip()
+    elif 'User:' in content:
+        result = content.split('User:')[0].strip()
+    elif 'Human:' in content:
+        result = content.split('Human:')[0].strip()
+    elif 'Question:' in content:
+        result = content.split('Question:')[0].strip()
+    else:
+        result = content.strip()
     
     # Additional cleanup - remove any remaining conversation patterns
-    for pattern in ['User:', 'Human:', 'Assistant:', 'Question:', 'user:', 'assistant:']:
+    conversation_patterns = ['Assistant:', 'User:', 'Human:', 'Question:', 'assistant:', 'user:', 'human:', 'question:']
+    for pattern in conversation_patterns:
         if pattern in result:
             # Split and take only the first part before any patterns
             parts = result.split(pattern)
@@ -379,29 +323,30 @@ def filter_generated_user_messages(content: str) -> str:
                 result = parts[0].strip()
     
     # Remove any trailing patterns
-    for pattern in ['Assistant:', 'assistant:', 'User:', 'user:']:
+    for pattern in conversation_patterns:
         result = result.rstrip(pattern).strip()
     
     return result
 
-def format_messages_for_llama(messages: list[ChatMessage]) -> str:
-    """Convert OpenAI chat messages to TinyLlama chat format"""
-    # Find the last user message
-    last_user_message = None
-    for message in reversed(messages):
-        if message.role == "user":
-            last_user_message = message.content
-            break
-    
-    if not last_user_message:
+def format_messages_for_ollama(messages: list[ChatMessage]) -> str:
+    """Convert OpenAI chat messages to Ollama format"""
+    if not messages:
         return "Hello! How can I help you today?"
     
-    # Use a very simple format that should prevent conversation loops
-    prompt = f"""<|im_start|>user
-{last_user_message}<|im_end|>
-<|im_start|>assistant
-"""
-    return prompt
+    # Build conversation context, but limit to last 3 exchanges to prevent context overflow
+    recent_messages = messages[-6:]  # Last 3 exchanges (6 messages)
+    
+    prompt_parts = []
+    for message in recent_messages:
+        if message.role == "user":
+            prompt_parts.append(f"Human: {message.content}")
+        elif message.role == "assistant":
+            prompt_parts.append(f"Assistant: {message.content}")
+    
+    # Add the current assistant prompt
+    prompt_parts.append("Assistant:")
+    
+    return "\n\n".join(prompt_parts)
 
 if __name__ == "__main__":
     uvicorn.run(

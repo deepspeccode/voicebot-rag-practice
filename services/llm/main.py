@@ -273,7 +273,10 @@ async def generate_completion(request: ChatCompletionRequest) -> ChatCompletionR
         
     except httpx.RequestError as e:
         logger.error(f"Error calling llama.cpp server: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate completion")
+        raise HTTPException(status_code=500, detail=f"Failed to generate completion: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error in generate_completion: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGenerator[str, None]:
     """Generate streaming response using llama.cpp"""
@@ -330,18 +333,22 @@ async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGe
         yield f"data: {json.dumps({'error': 'Failed to generate completion'})}\n\n"
 
 def format_messages_for_llama(messages: list[ChatMessage]) -> str:
-    """Convert OpenAI chat messages to llama.cpp prompt format"""
-    prompt = ""
-    for message in messages:
-        if message.role == "system":
-            prompt += f"<|system|>\n{message.content}\n"
-        elif message.role == "user":
-            prompt += f"<|user|>\n{message.content}\n"
-        elif message.role == "assistant":
-            prompt += f"<|assistant|>\n{message.content}\n"
+    """Convert OpenAI chat messages to TinyLlama chat format"""
+    # Use a very direct format that prevents the model from generating user messages
+    # Take only the last user message and create a simple Q&A format
     
-    # Add assistant prompt
-    prompt += "<|assistant|>\n"
+    # Find the last user message
+    last_user_message = None
+    for message in reversed(messages):
+        if message.role == "user":
+            last_user_message = message.content
+            break
+    
+    if not last_user_message:
+        return "Hello! How can I help you today?"
+    
+    # Use a very direct format that should prevent conversation continuation
+    prompt = f"Question: {last_user_message}\n\nAnswer:"
     return prompt
 
 if __name__ == "__main__":

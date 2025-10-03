@@ -340,26 +340,52 @@ async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGe
 
 def filter_generated_user_messages(content: str) -> str:
     """Filter out generated user messages to prevent AI talking to itself"""
+    # First, remove any special tokens that might cause issues
+    content = content.replace('<|im_start|>', '').replace('<|im_end|>', '')
+    
     lines = content.split('\n')
     filtered_lines = []
     
     for line in lines:
-        # Skip lines that start with "User:" or contain user-like patterns
-        if (line.strip().startswith('User:') or 
-            line.strip().startswith('Human:') or
-            line.strip().startswith('Question:') and '?' in line):
-            continue
-        # Stop at the first user message pattern
-        if 'User:' in line or 'Human:' in line:
+        line = line.strip()
+        
+        # Stop at any conversation pattern
+        if (line.startswith('User:') or 
+            line.startswith('Human:') or
+            line.startswith('Question:') or
+            line.startswith('Assistant:') or
+            line.startswith('user:') or
+            line.startswith('assistant:') or
+            'User:' in line or 
+            'Human:' in line or
+            'Assistant:' in line):
             break
+            
+        # Skip empty lines
+        if not line:
+            continue
+            
         filtered_lines.append(line)
     
-    return '\n'.join(filtered_lines).strip()
+    # Join and clean up the response
+    result = '\n'.join(filtered_lines).strip()
+    
+    # Additional cleanup - remove any remaining conversation patterns
+    for pattern in ['User:', 'Human:', 'Assistant:', 'Question:', 'user:', 'assistant:']:
+        if pattern in result:
+            # Split and take only the first part before any patterns
+            parts = result.split(pattern)
+            if parts:
+                result = parts[0].strip()
+    
+    # Remove any trailing patterns
+    for pattern in ['Assistant:', 'assistant:', 'User:', 'user:']:
+        result = result.rstrip(pattern).strip()
+    
+    return result
 
 def format_messages_for_llama(messages: list[ChatMessage]) -> str:
     """Convert OpenAI chat messages to TinyLlama chat format"""
-    # Use a system prompt to constrain the AI to only respond, not continue conversations
-    
     # Find the last user message
     last_user_message = None
     for message in reversed(messages):
@@ -370,12 +396,11 @@ def format_messages_for_llama(messages: list[ChatMessage]) -> str:
     if not last_user_message:
         return "Hello! How can I help you today?"
     
-    # Use a system prompt that explicitly tells the AI to only respond, not continue
-    prompt = f"""You are a helpful AI assistant. You should ONLY respond to the user's question. Do not generate additional questions or continue the conversation. Just answer the question directly and concisely.
-
-User: {last_user_message}
-
-Assistant:"""
+    # Use a very simple format that should prevent conversation loops
+    prompt = f"""<|im_start|>user
+{last_user_message}<|im_end|>
+<|im_start|>assistant
+"""
     return prompt
 
 if __name__ == "__main__":

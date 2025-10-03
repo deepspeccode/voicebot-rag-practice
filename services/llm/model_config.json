@@ -1,14 +1,14 @@
 {
-  "model_name": "qwen2.5-vl-7b-instruct",
-  "model_file": "Qwen2.5-VL-7B-Instruct.Q4_K_M.gguf",
-  "model_path": "/models/Qwen2.5-VL-7B-Instruct.Q4_K_M.gguf",
+  "model_name": "tinyllama-1.1b-chat",
+  "model_file": "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+  "model_path": "/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
   "quantization": "Q4_K_M",
   "context_size": 2048,
   "max_tokens": 512,
   "temperature": 0.7,
   "top_p": 0.9,
-  "threads": 4,
-  "batch_size": 512,
+  "threads": 2,
+  "batch_size": 256,
   "n_gpu_layers": 0,
-  "description": "Qwen2.5 VL 7B Instruct model with Q4_K_M quantization - excellent for conversations and multimodal tasks"
+  "description": "TinyLlama 1.1B Chat model - perfect for 4GB RAM"
 }

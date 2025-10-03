@@ -30,7 +30,7 @@
                     <span id="status-text" class="text-sm text-gray-600">Connecting...</span>
                 </div>
                 <div class="text-sm text-gray-500">
-                    Model: Qwen2.5 7B | Backend: localhost:8001
+                    Model: Qwen2.5 7B | Backend: EC2 Instance
                 </div>
             </div>
         </div>
@@ -197,7 +197,7 @@
         // Check LLM service status
         async function checkStatus() {
             try {
-                const response = await fetch('http://localhost:8001/healthz');
+                const response = await fetch('/api/healthz');
                 const data = await response.json();
                 
                 if (data.status === 'ok' && data.model_loaded) {
@@ -271,7 +271,7 @@
             try {
                 showTyping(true);
                 
-                const response = await fetch('http://localhost:8001/v1/chat/completions', {
+                const response = await fetch('/api/v1/chat/completions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -334,7 +334,7 @@
         // Fetch performance metrics from Prometheus endpoint
         async function fetchMetrics() {
             try {
-                const response = await fetch('http://localhost:8001/metrics');
+                const response = await fetch('/api/metrics');
                 const metricsText = await response.text();
                 
                 // Parse Prometheus metrics
@@ -378,7 +378,7 @@
         // Fetch health status for detailed metrics
         async function fetchHealthStatus() {
             try {
-                const response = await fetch('http://localhost:8001/healthz');
+                const response = await fetch('/api/healthz');
                 const data = await response.json();
                 
                 if (data.uptime) {
@@ -431,7 +431,7 @@
             try {
                 showTyping(true);
                 
-                const response = await fetch('http://localhost:8001/v1/chat/completions', {
+                const response = await fetch('/api/v1/chat/completions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

@@ -1,7 +1,7 @@
 {
-  "model_name": "llama-3.1-8b-instruct",
-  "model_file": "llama-3.1-8b-instruct.Q4_K_M.gguf",
-  "model_path": "/models/llama-3.1-8b-instruct.Q4_K_M.gguf",
+  "model_name": "phi-3-mini",
+  "model_file": "Phi-3-mini-4k-instruct-Q4_K_M.gguf",
+  "model_path": "/models/Phi-3-mini-4k-instruct-Q4_K_M.gguf",
   "quantization": "Q4_K_M",
   "context_size": 2048,
   "max_tokens": 512,
@@ -10,5 +10,5 @@
   "threads": 4,
   "batch_size": 512,
   "n_gpu_layers": 0,
-  "description": "Llama 3.1 8B Instruct model with Q4_K_M quantization for CPU inference"
+  "description": "Phi-3 Mini 4K Instruct model with Q4_K_M quantization - extremely fast for testing"
 }

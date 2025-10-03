@@ -10,12 +10,12 @@ import requests
 import hashlib
 from pathlib import Path
 
-# Model configuration
-MODEL_NAME = "llama-3.1-8b-instruct"
-MODEL_FILE = "llama-3.1-8b-instruct.Q4_K_M.gguf"
-MODEL_URL = f"https://huggingface.co/TheBloke/Llama-3.1-8B-Instruct-GGUF/resolve/main/{MODEL_FILE}"
+# Model configuration - Using Phi-3 Mini for fast testing
+MODEL_NAME = "phi-3-mini"
+MODEL_FILE = "Phi-3-mini-4k-instruct-Q4_K_M.gguf"
+MODEL_URL = f"https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/{MODEL_FILE}"
 MODEL_PATH = "/models"
-EXPECTED_SIZE = 4.7 * 1024 * 1024 * 1024  # ~4.7GB
+EXPECTED_SIZE = 2.3 * 1024 * 1024 * 1024  # ~2.3GB
 
 def download_file(url: str, filepath: str) -> bool:
     """Download file with progress bar"""

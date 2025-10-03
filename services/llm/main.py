@@ -244,6 +244,9 @@ async def generate_completion(request: ChatCompletionRequest) -> ChatCompletionR
             llama_response = response.json()
         content = llama_response.get("content", "")
         
+        # Filter out generated user messages to prevent "talking to itself"
+        content = filter_generated_user_messages(content)
+        
         # Count tokens (rough estimation)
         prompt_tokens = len(prompt.split())
         completion_tokens = len(content.split())
@@ -315,16 +318,19 @@ async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGe
                                     llama_data = json.loads(data)
                                     # Convert llama.cpp format to OpenAI format
                                     if 'content' in llama_data:
-                                        openai_data = {
-                                            "choices": [{
-                                                "delta": {
-                                                    "content": llama_data['content']
-                                                }
-                                            }]
-                                        }
-                                        yield f"data: {json.dumps(openai_data)}\n\n"
-                                        _, _, token_count = get_metrics()
-                                        token_count.inc(1)
+                                        # Filter out generated user messages
+                                        filtered_content = filter_generated_user_messages(llama_data['content'])
+                                        if filtered_content:  # Only yield if there's content after filtering
+                                            openai_data = {
+                                                "choices": [{
+                                                    "delta": {
+                                                        "content": filtered_content
+                                                    }
+                                                }]
+                                            }
+                                            yield f"data: {json.dumps(openai_data)}\n\n"
+                                            _, _, token_count = get_metrics()
+                                            token_count.inc(1)
                                 except json.JSONDecodeError:
                                     continue
                             
@@ -332,10 +338,27 @@ async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGe
         logger.error(f"Error calling llama.cpp server: {e}")
         yield f"data: {json.dumps({'error': 'Failed to generate completion'})}\n\n"
 
+def filter_generated_user_messages(content: str) -> str:
+    """Filter out generated user messages to prevent AI talking to itself"""
+    lines = content.split('\n')
+    filtered_lines = []
+    
+    for line in lines:
+        # Skip lines that start with "User:" or contain user-like patterns
+        if (line.strip().startswith('User:') or 
+            line.strip().startswith('Human:') or
+            line.strip().startswith('Question:') and '?' in line):
+            continue
+        # Stop at the first user message pattern
+        if 'User:' in line or 'Human:' in line:
+            break
+        filtered_lines.append(line)
+    
+    return '\n'.join(filtered_lines).strip()
+
 def format_messages_for_llama(messages: list[ChatMessage]) -> str:
     """Convert OpenAI chat messages to TinyLlama chat format"""
-    # Use a very direct format that prevents the model from generating user messages
-    # Take only the last user message and create a simple Q&A format
+    # Use a system prompt to constrain the AI to only respond, not continue conversations
     
     # Find the last user message
     last_user_message = None
@@ -347,8 +370,12 @@ def format_messages_for_llama(messages: list[ChatMessage]) -> str:
     if not last_user_message:
         return "Hello! How can I help you today?"
     
-    # Use a very direct format that should prevent conversation continuation
-    prompt = f"Question: {last_user_message}\n\nAnswer:"
+    # Use a system prompt that explicitly tells the AI to only respond, not continue
+    prompt = f"""You are a helpful AI assistant. You should ONLY respond to the user's question. Do not generate additional questions or continue the conversation. Just answer the question directly and concisely.
+
+User: {last_user_message}
+
+Assistant:"""
     return prompt
 
 if __name__ == "__main__":

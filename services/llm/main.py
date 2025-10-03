@@ -237,7 +237,11 @@ async def generate_completion(request: ChatCompletionRequest) -> ChatCompletionR
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGenerator[str, None]:
-    """Generate streaming response using Ollama"""
+    """Generate streaming response using Ollama with proper SSE framing, cancellation handling, and time-to-first-token capture"""
+    import time
+    start_time = time.time()
+    first_token_time = None
+    
     # Convert messages to Ollama format
     prompt = format_messages_for_ollama(request.messages)
     
@@ -263,7 +267,7 @@ async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGe
             ) as response:
                 response.raise_for_status()
                 
-                # Stream the response
+                # Stream the response with proper SSE framing
                 async for line in response.aiter_lines():
                     if line:
                         try:
@@ -272,6 +276,11 @@ async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGe
                             if 'response' in ollama_data:
                                 content = ollama_data['response']
                                 if content:  # Only yield if there's content
+                                    # Capture time-to-first-token
+                                    if first_token_time is None:
+                                        first_token_time = time.time()
+                                        logger.info(f"Time to first token: {first_token_time - start_time:.3f}s")
+                                    
                                     openai_data = {
                                         "choices": [{
                                             "delta": {
@@ -279,13 +288,14 @@ async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGe
                                             }
                                         }]
                                     }
-                                    yield f"data: {json.dumps(openai_data)}\n\n"
+                                    # Proper SSE framing: event: message, data: {...}
+                                    yield f"event: message\ndata: {json.dumps(openai_data)}\n\n"
                                     _, _, token_count = get_metrics()
                                     token_count.inc(1)
                             
-                            # Check if done
+                            # Check if done - proper end-of-stream token
                             if ollama_data.get('done', False):
-                                yield "data: [DONE]\n\n"
+                                yield "event: message\ndata: [DONE]\n\n"
                                 break
                                 
                         except json.JSONDecodeError:
@@ -293,7 +303,15 @@ async def generate_streaming_response(request: ChatCompletionRequest) -> AsyncGe
                             
     except httpx.RequestError as e:
         logger.error(f"Error calling Ollama server: {e}")
-        yield f"data: {json.dumps({'error': 'Failed to generate completion'})}\n\n"
+        yield f"event: error\ndata: {json.dumps({'error': 'Failed to generate completion'})}\n\n"
+    except asyncio.CancelledError:
+        # Handle client disconnect (cancellation)
+        logger.info("Streaming request cancelled by client")
+        yield f"event: error\ndata: {json.dumps({'error': 'Request cancelled'})}\n\n"
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in streaming: {e}")
+        yield f"event: error\ndata: {json.dumps({'error': 'Unexpected error'})}\n\n"
 
 def filter_generated_user_messages(content: str) -> str:
     """Filter out generated user messages to prevent AI talking to itself"""
